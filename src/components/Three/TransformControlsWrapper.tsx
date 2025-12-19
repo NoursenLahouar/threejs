@@ -8,67 +8,104 @@ import { useEditor } from "@/context/EditorContext";
 
 export function TransformControlsWrapper() {
     const { camera, renderer, scene, controls: orbitControls } = useThree();
-    const { selectedId, updateObject } = useEditor();
+    const { selectedIds, updateObject, transformMode, objects } = useEditor();
 
     const controlsRef = useRef<TransformControls | null>(null);
 
+    // 1. Initialize Controls (Run Once / Only when Core Deps change)
     useEffect(() => {
         if (!camera || !renderer || !scene) return;
 
         const controls = new TransformControls(camera, renderer.domElement);
-        controls.setSize(1.2); // Make gizmo easier to grab
+        controls.setSize(1.5); // Increased size for better usability
+        controls.setSpace("local");
 
-        // We can't easily access orbit controls start/end here without context,
-        // but TransformControls handles its own interaction state usually.
-        // We'll trust the default behavior for now or add 'dragging-changed' later if needed for OrbitControls conflict.
+        // Fix Bug 2: Initialize with current mode!
+        controls.setMode(transformMode);
 
-        controls.addEventListener('dragging-changed', (event: any) => {
-            // If we have orbit controls, disable them while dragging
+        // Disable plane helpers (the colored rectangles) but keep arrows
+        const controlsAny = controls as any;
+        if (controlsAny.children && controlsAny.children[0]) {
+            const gizmo = controlsAny.children[0];
+            if (gizmo.picker) {
+                gizmo.picker.traverse((child: any) => {
+                    if (child.name && (child.name.includes('Plane') || child.name === 'XY' || child.name === 'YZ' || child.name === 'XZ')) {
+                        child.visible = false;
+                    }
+                });
+            }
+        }
+
+        // Event: Dragging Changed (Disable OrbitControls)
+        const onDraggingChanged = (event: any) => {
             if (orbitControls) {
                 orbitControls.enabled = !event.value;
             }
+        };
 
-            // If dragging stopped (event.value === false), sync state
-            if (!event.value) {
-                if (controls.object && selectedId) {
-                    const obj = controls.object;
-                    updateObject(selectedId, {
+        const onDragEnd = (event: any) => {
+            if (!event.value && controls.object) {
+                const obj = controls.object;
+                if (obj.userData.id) {
+                    updateObject(obj.userData.id, {
                         position: [obj.position.x, obj.position.y, obj.position.z],
                         rotation: [obj.rotation.x, obj.rotation.y, obj.rotation.z],
                         scale: [obj.scale.x, obj.scale.y, obj.scale.z],
                     });
                 }
             }
-        });
+        }
 
-        // Helper visual
+        controls.addEventListener('dragging-changed', onDraggingChanged);
+        controls.addEventListener('dragging-changed', onDragEnd);
+
         scene.add(controls.getHelper());
         controlsRef.current = controls;
 
         return () => {
+            controls.removeEventListener('dragging-changed', onDraggingChanged);
+            controls.removeEventListener('dragging-changed', onDragEnd);
             controls.dispose();
             scene.remove(controls.getHelper());
             controlsRef.current = null;
         };
-    }, [camera, renderer, scene, selectedId, updateObject, orbitControls]);
+    }, [camera, renderer, scene, orbitControls, updateObject]); // Don't add transformMode here to avoid re-creation
 
-    // Attach to selected object
+    // 2. Update Mode (Run when transformMode changes)
+    useEffect(() => {
+        if (controlsRef.current) {
+            controlsRef.current.setMode(transformMode);
+        }
+    }, [transformMode]);
+
+    // 3. Attach/Detach (Run when selectedIds OR objects changes)
+    // Fix Bug 1: Depend on 'objects' to retry attach if target wasn't ready yet.
     useEffect(() => {
         const controls = controlsRef.current;
         if (!controls || !scene) return;
 
+        // Attach to first selected object (for multi-selection, only show gizmo on first)
+        const selectedId = selectedIds[0];
+
         if (selectedId) {
-            const selectedMesh = scene.children.find(child => child.userData.id === selectedId) as THREE.Object3D;
-            if (selectedMesh) {
-                controls.attach(selectedMesh);
+            let target: THREE.Object3D | undefined;
+            scene.traverse((child) => {
+                if (child.userData.id === selectedId) {
+                    target = child;
+                }
+            });
+
+            if (target) {
+                controls.attach(target);
             } else {
+                // If not found, maybe it's loading? 
+                // We detach for now.
                 controls.detach();
             }
         } else {
             controls.detach();
         }
-
-    }, [selectedId, scene]);
+    }, [selectedIds, scene, objects]); // Added 'objects' dependency
 
     return null;
 }

@@ -1,60 +1,89 @@
 
 "use client";
 
+import { useEffect } from "react";
 import { SceneProvider } from "@/components/SceneProvider";
 import { OrbitControlsWrapper } from "./Three/OrbitControls";
-import { EditorProvider, useEditor } from "@/context/EditorContext";
+import { useEditor } from "@/context/EditorContext";
 import { ObjectManager } from "./Three/ObjectManager";
 import { SelectionManager } from "./Three/SelectionManager";
 import { SelectionHighlight } from "./Three/SelectionHighlight";
 import { TransformControlsWrapper } from "./Three/TransformControlsWrapper";
+import { TransformToolbar } from "./UI/TransformToolbar";
+import { AddMeshDropdown } from "./UI/AddMeshDropdown";
 
 export default function ViewPort() {
+    const {
+        selectedIds,
+        deleteObject,
+        duplicateObject,
+        undo,
+        redo,
+        setTransformMode
+    } = useEditor();
+
+    // Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if input is active (to avoid capturing typing)
+            if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
+            // Undo/Redo
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                undo();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                e.preventDefault();
+                redo();
+                return;
+            }
+
+            // Transform Modes
+            if (e.key.toLowerCase() === 'm') setTransformMode('translate');
+            if (e.key.toLowerCase() === 'r') setTransformMode('rotate');
+            if (e.key.toLowerCase() === 's') setTransformMode('scale');
+
+            if (selectedIds.length === 0) return;
+
+            // Delete all selected objects
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                selectedIds.forEach(id => deleteObject(id));
+            }
+
+            // Duplicate all selected objects
+            if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+                e.preventDefault();
+                selectedIds.forEach(id => duplicateObject(id));
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedIds, deleteObject, duplicateObject, undo, redo, setTransformMode]);
+
     return (
-        <div className="h-[70vh] w-full rounded-2xl border border-white/10 bg-black/20 overflow-hidden relative">
-            <EditorProvider>
-                {/* The SceneProvider creates the div ref and canvas internally */}
-                <SceneProvider>
-                    {/* Scene Content Managers */}
-                    <ObjectManager />
-                    <SelectionManager />
-                    <SelectionHighlight />
-                    <TransformControlsWrapper />
+        <div className="h-full w-full relative">
+            {/* The SceneProvider creates the div ref and canvas internally */}
+            <SceneProvider>
+                {/* Scene Content Managers */}
+                <ObjectManager />
+                <SelectionManager />
+                <SelectionHighlight />
+                <TransformControlsWrapper />
 
-                    {/* Controls */}
-                    <OrbitControlsWrapper />
-                </SceneProvider>
+                {/* Controls */}
+                <OrbitControlsWrapper />
+            </SceneProvider>
 
-                {/* UI Overlay */}
-                <OverlayUI />
-            </EditorProvider>
-        </div>
-    );
-}
+            {/* UI Overlay */}
+            <div className="absolute top-4 left-4 z-10">
+                <AddMeshDropdown />
+            </div>
 
-function OverlayUI() {
-    const { addObject } = useEditor();
-
-    return (
-        <div className="absolute top-4 left-4 flex flex-col gap-2">
-            <button
-                onClick={() => addObject("cube")}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg backdrop-blur-md transition-colors border border-white/10"
-            >
-                Add Cube
-            </button>
-            <button
-                onClick={() => addObject("sphere")}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg backdrop-blur-md transition-colors border border-white/10"
-            >
-                Add Sphere
-            </button>
-            <button
-                onClick={() => addObject("mushroom")}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg backdrop-blur-md transition-colors border border-white/10"
-            >
-                Add Mushroom
-            </button>
+            {/* Transform Toolbar - Only show when object(s) selected */}
+            {selectedIds.length > 0 && <TransformToolbar />}
         </div>
     );
 }

@@ -7,7 +7,7 @@ import { useEditor } from "@/context/EditorContext";
 
 export function SelectionManager() {
     const { camera, scene, renderer, registerCallback, unregisterCallback } = useThree();
-    const { selectObject } = useEditor();
+    const { selectObject, toggleSelection } = useEditor();
 
     useEffect(() => {
         if (!renderer || !camera || !scene) return;
@@ -43,7 +43,12 @@ export function SelectionManager() {
                     let obj: THREE.Object3D | null = hit.object;
                     while (obj && obj !== scene) {
                         if (obj.userData.id) {
-                            selectObject(obj.userData.id);
+                            // Check if Ctrl/Cmd key is pressed for multi-selection
+                            if (event.ctrlKey || event.metaKey) {
+                                toggleSelection(obj.userData.id);
+                            } else {
+                                selectObject([obj.userData.id]);
+                            }
                             return;
                         }
                         obj = obj.parent;
@@ -80,7 +85,7 @@ export function SelectionManager() {
             renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
         };
 
-    }, [renderer, camera, scene, selectObject]);
+    }, [renderer, camera, scene, selectObject, toggleSelection]);
 
     return null;
 }
