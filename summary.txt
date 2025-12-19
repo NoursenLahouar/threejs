@@ -1,0 +1,56 @@
+PHASE 1 SUMMARY: INITIALIZING THE FOUNDATION
+--------------------------------------------------
+
+1. PROJECT SETUP
+   - Initialized a Next.js 14+ project with TypeScript and Tailwind CSS.
+   - Configured `tsconfig.json` for proper module resolution ("bundler") to support modern libraries.
+   - Set up `globals.css` with a dark, premium aesthetic (custom @layer base styles, smooth fonts).
+
+2. CORE ARCHITECTURE (Three.js + React Context)
+   - Created `src/context/ThreeContext.tsx`:
+     - Defines the `ThreeContext` to share `scene`, `camera`, `renderer`, and `containerRef` across the app.
+     - Implements a `callbacks` system (register/unregister) to allow child components (like Controls) to hook into the animation loop without prop drilling.
+
+   - Created `src/components/SceneProvider.tsx`:
+     - ACTS AS THE "ENGINE": Handles the lifecycle of the Three.js scene.
+     - MOUNT: Initializes `THREE.Scene`, `THREE.PerspectiveCamera`, and `THREE.WebGLRenderer`.
+     - RESIZE: Uses `ResizeObserver` to auto-adjust camera aspect ratio and renderer size when the window or container changes.
+     - ANIMATION LOOP: Runs `requestAnimationFrame` and executes all registered callbacks (e.g., OrbitControls updates) before rendering.
+     - CLEANUP: Properly disposes of the renderer and removes the canvas to verify no memory leaks occur on unmount.
+     - INITIAL SCENE: Added a GridHelper (tagged `isGrid`) using premium colors.
+
+3. VIEWPORT & CONTROLS
+   - Created `src/components/ViewPort.tsx`:
+     - A container component with styling to host the 3D scene.
+   - Created `src/components/Three/OrbitControls.tsx`:
+     - A wrapper around `three/examples/jsm/controls/OrbitControls`.
+     - Hooks into `ThreeContext` to attach controls.
+     - Exposes instance to `ThreeContext` so others can disable it (e.g., during Transform Drag).
+
+PHASE 2 SUMMARY: CORE EDITOR FEATURES
+--------------------------------------------------
+1. EDITOR INFRASTRUCTURE
+   - Created `src/context/EditorContext.tsx`:
+     - Manages `objects` and `selectedId`. Actions: `addObject`, `selectObject`, `updateObject`.
+     - Schema includes id, type, props (position, rotation, scale, color).
+
+2. SCENE SYNCHRONIZATION
+   - Created `src/components/Three/ObjectManager.tsx`:
+     - Syncs React State -> Three.js Scene.
+     - Handles Primitives (Cube, Sphere) and GLTF Models (Mushroom).
+
+3. INTERACTION TOOLS
+   - Created `src/components/Three/SelectionManager.tsx`:
+     - Raycaster logic.
+     - FIX: Recursive raycast handles Groups (Mushroom).
+     - FIX: Smart filtering ensures clicking Gizmos does NOT deselect the object.
+   - Created `src/components/Three/TransformControlsWrapper.tsx`:
+     - Wraps `TransformControls` for Move/Rotate/Scale.
+     - Syncs 3D Drag -> React State.
+     - Disables OrbitControls during interaction.
+     - Larger Gizmos for better usability.
+   - Created `src/components/Three/SelectionHighlight.tsx`:
+     - Visual feedback (Yellow Box) for selected objects.
+
+4. CUSTOM CONTENT
+   - Added `mashroom.glb` loading support.
