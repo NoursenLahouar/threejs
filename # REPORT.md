@@ -72,4 +72,4 @@ If this project were to be continued in a production environment, the next steps
 
 ## Conclusion
 
-This project was made quickly and i did not focuse on it a lot kn owing that i have no experience with next js and three js my flight is n ne hour this report was written quickly
+This project was made quickly and i did not focus on it a lot kn owing that i have no experience with next js and three js my flight is n ne hour this report was written quickly also.
