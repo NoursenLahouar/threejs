@@ -7,68 +7,65 @@ import { useEditor } from "@/context/EditorContext";
 
 export function SelectionHighlight() {
     const { scene, registerCallback, unregisterCallback } = useThree();
-    const { selectedId } = useEditor();
+    const { selectedIds } = useEditor();
 
-    const helperRef = useRef<THREE.BoxHelper | null>(null);
+    const helpersRef = useRef<THREE.BoxHelper[]>([]);
 
     useEffect(() => {
         if (!scene) return;
 
-        if (selectedId) {
-            // Find object
-            const selectedObject = scene.children.find(c => c.userData.id === selectedId);
+        // Clear existing helpers
+        helpersRef.current.forEach(helper => {
+            scene.remove(helper);
+            helper.dispose();
+        });
+        helpersRef.current = [];
 
-            if (selectedObject) {
-                // Create helper
-                const helper = new THREE.BoxHelper(selectedObject, 0xffff00); // Yellow
-                scene.add(helper);
-                helperRef.current = helper;
-
-                // Register update loop because BoxHelper needs to update if object moves
-                const updateId = "selection-helper-update";
-                registerCallback(updateId, () => {
-                    if (helperRef.current) {
-                        helperRef.current.update();
+        // Create helpers for all selected objects
+        if (selectedIds.length > 0) {
+            selectedIds.forEach(selectedId => {
+                // Find object
+                let selectedObject: THREE.Object3D | undefined;
+                scene.traverse((child) => {
+                    if (child.userData.id === selectedId) {
+                        selectedObject = child;
                     }
                 });
-            }
-        } else {
-            // Cleanup if deselected (handled in cleanup function below mostly, but strict logic here)
+
+                if (selectedObject) {
+                    // Create helper
+                    const helper = new THREE.BoxHelper(selectedObject, 0xffff00); // Yellow
+                    // Disable raycasting for the highlight box so it doesn't block selection or gizmo
+                    helper.raycast = () => null;
+                    scene.add(helper);
+                    helpersRef.current.push(helper);
+                }
+            });
         }
 
         return () => {
-            if (helperRef.current) {
-                scene.remove(helperRef.current);
-                helperRef.current.dispose();
-                helperRef.current = null;
-                // Unregister callback
-                // Assuming unregister is safe even if not registered? Yes usually.
-                // But we should use the same ID logic.
-                // Scope issue: 'updateId' is inside the block. 
-                // We should move logic.
-            }
-            // We can't easily unregister the callback created inside the if(selectedId) block from here 
-            // because the ID string is local. 
+            helpersRef.current.forEach(helper => {
+                scene.remove(helper);
+                helper.dispose();
+            });
+            helpersRef.current = [];
         };
-    }, [scene, selectedId]);
+    }, [scene, selectedIds]);
 
-    // Proper callback cleanup effect
+    // Update all helpers
     useEffect(() => {
         const updateId = "selection-helper-update";
-        // We only want to REGISTER if we have a helper.
-        // Actually, simpler: Always register, check ref inside?
-        // No, simpler: 
 
-        if (selectedId) {
+        if (selectedIds.length > 0) {
             registerCallback(updateId, () => {
-                if (helperRef.current) helperRef.current.update();
+                helpersRef.current.forEach(helper => helper.update());
             });
         }
 
         return () => {
             unregisterCallback(updateId);
         };
-    }, [selectedId, registerCallback, unregisterCallback]);
+    }, [selectedIds, registerCallback, unregisterCallback]);
 
     return null;
 }
